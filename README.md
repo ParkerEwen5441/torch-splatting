@@ -2,13 +2,27 @@
 A pure pytorch implementation of 3D gaussian splatting. 
 
 ## Train
-clone the repo
+clone the repo:
 
 ```bash
 git clone https://github.com/hbb1/torch-splatting.git --recursive
 ```
 
-and run
+Run the following commands to setup the repo:
+
+```bash
+unzip B075X65R3X.zip
+mkdir -p result/test
+```
+
+Lastly, set up the conda environment:
+
+```bash
+conda env create --file environment.yml
+conda activate torch_splatting
+```
+
+Run the code and train the model:
 
 ```bash
 python train.py

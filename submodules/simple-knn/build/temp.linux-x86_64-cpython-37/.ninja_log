@@ -1,0 +1,5 @@
+# ninja log v5
+0	8433	1710880325489105540	/home/pewen/git/torch-splatting/submodules/simple-knn/build/temp.linux-x86_64-cpython-37/ext.o	ffe7ce46a6ab9682
+10	7973	1710880457493496619	/home/pewen/git/torch-splatting/submodules/simple-knn/build/temp.linux-x86_64-cpython-37/simple_knn.o	e378eb6229689b40
+10	12783	1710880462293365510	/home/pewen/git/torch-splatting/submodules/simple-knn/build/temp.linux-x86_64-cpython-37/ext.o	db29e0b4f503b69f
+11	32901	1710880482420815733	/home/pewen/git/torch-splatting/submodules/simple-knn/build/temp.linux-x86_64-cpython-37/spatial.o	3ebe32f9ee5aa5bd

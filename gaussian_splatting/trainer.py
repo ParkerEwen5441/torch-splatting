@@ -92,8 +92,6 @@ class Trainer(object):
                 'train_num_steps':train_num_steps,
             })
 
-
-
     def save(self, milestone):
         if not self.accelerator.is_local_main_process:
             return
@@ -124,7 +122,6 @@ class Trainer(object):
 
         if exists(self.accelerator.scaler) and exists(data['scaler']):
             self.accelerator.scaler.load_state_dict(data['scaler'])
-
 
     def on_train_step(self):
         raise NotImplementedError('not implemeted')

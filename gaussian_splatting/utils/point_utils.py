@@ -32,7 +32,7 @@ def get_rays_single_image(H, W, intrinsics, c2w, render_stride=1):
         return rays_o, rays_d
 
 
-def get_point_clouds(cameras, depths, alphas, rgbs=None):
+def get_point_clouds(cameras, depths, alphas, rgbs=None, semantics=None):
     """
     depth map to point cloud
     """
@@ -47,13 +47,22 @@ def get_point_clouds(cameras, depths, alphas, rgbs=None):
     rgbas = torch.cat([rgbs, alphas.unsqueeze(-1)], dim=-1)
     coords = pts[mask].cpu().numpy()
     rgbas = rgbas.flatten(1,-2)[mask].cpu().numpy()
+    semantics = semantics.flatten(1)[mask].squeeze().cpu().numpy()
 
-    if rgbs is not None:
+    if rgbs is not None and semantics is None:
         channels = dict(
             R=rgbas[..., 0],
             G=rgbas[..., 1],
             B=rgbas[..., 2],
             A=rgbas[..., 3],
+        )
+    elif rgbs is not None and semantics is not None:
+        channels = dict(
+            R=rgbas[..., 0],
+            G=rgbas[..., 1],
+            B=rgbas[..., 2],
+            A=rgbas[..., 3],
+            S=semantics[...],
         )
     else:
         channels = {}
@@ -101,6 +110,7 @@ class PointCloud:
                 if all(x in self.channels for x in "RGB")
                 else None
             ),
+            semantics=self.channels["S"]
         )
 
     def random_sample(self, num_points: int, **subsample_kwargs) -> "PointCloud":
@@ -253,6 +263,7 @@ def write_ply(
     coords: np.ndarray,
     rgb: Optional[np.ndarray] = None,
     faces: Optional[np.ndarray] = None,
+    semantics: Optional[np.ndarray] = None,
 ):
     """
     Write a PLY file for a mesh or a point cloud.
@@ -275,6 +286,8 @@ def write_ply(
         if faces is not None:
             f.write(bytes(f"element face {len(faces)}\n", "ascii"))
             f.write(b"property list uchar int vertex_index\n")
+        if semantics is not None:
+            f.write(b"property float semantic class\n")
         f.write(b"end_header\n")
 
         if rgb is not None:
@@ -298,6 +311,11 @@ def write_ply(
             format = struct.Struct("<B3I")
             for tri in faces.tolist():
                 f.write(format.pack(len(tri), *tri))
+
+        if semantics is not None:
+            format = struct.Struct("<1f")
+            for semantic in semantics.tolist():
+                f.write(format.pack(*semantic))
 
 
 @contextmanager

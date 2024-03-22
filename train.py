@@ -30,6 +30,7 @@ class GSSTrainer(Trainer):
         rgb = self.data['rgb'][ind]
         depth = self.data['depth'][ind]
         mask = (self.data['alpha'][ind] > 0.5)
+        alpha = self.data['alpha'][ind]
         if USE_GPU_PYTORCH:
             camera = to_viewpoint_camera(camera)
 
@@ -41,6 +42,11 @@ class GSSTrainer(Trainer):
         with prof:
             out = self.gaussRender(pc=self.model, camera=camera)
 
+        import matplotlib.pyplot as plt
+        input(out['semantic'].detach().cpu().numpy())
+        plt.imshow(out['semantic'].detach().cpu().numpy())
+        plt.show()
+
         if USE_PROFILE:
             print(prof.key_averages(group_by_stack_n=True).table(sort_by='self_cuda_time_total', row_limit=20))
 
@@ -48,6 +54,8 @@ class GSSTrainer(Trainer):
         l1_loss = loss_utils.l1_loss(out['render'], rgb)
         depth_loss = loss_utils.l1_loss(out['depth'][..., 0][mask], depth[mask])
         ssim_loss = 1.0-loss_utils.ssim(out['render'], rgb)
+
+        # sem_loss = loss_utils.l1_loss(out['semantic'], alpha)
 
         total_loss = (1-self.lambda_dssim) * l1_loss + self.lambda_dssim * ssim_loss + depth_loss * self.lambda_depth
         psnr = utils.img2psnr(out['render'], rgb)
@@ -82,12 +90,17 @@ if __name__ == "__main__":
     data = {k: v.to(device) for k, v in data.items()}
     data['depth_range'] = torch.Tensor([[1,3]]*len(data['rgb'])).to(device)
 
-    points = get_point_clouds(data['camera'], data['depth'], data['alpha'], data['rgb'])
+    # input(data["semantic"])
+    # import matplotlib.pyplot as plt
+    # plt.imshow(data['semantic'][0,:,:].cpu().detach().numpy())
+    # plt.show()
+
+    points = get_point_clouds(data['camera'], data['depth'], data['alpha'], data['rgb'], data['semantic'])
     raw_points = points.random_sample(2**14)
 
     gaussModel = GaussModel(sh_degree=4, debug=False)
     gaussModel.create_from_pcd(pcd=raw_points)
-    
+
     render_kwargs = {
         'white_bkgd': True,
     }

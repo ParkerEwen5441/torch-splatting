@@ -49,8 +49,10 @@ class GaussModel(nn.Module):
         self._scaling = torch.empty(0)
         self._rotation = torch.empty(0)
         self._opacity = torch.empty(0)
+        self._semantics = torch.empty(0)
         self.setup_functions()
         self.debug = debug
+        self.num_classes = 2
 
     def create_from_pcd(self, pcd:PointCloud):
         """
@@ -58,12 +60,16 @@ class GaussModel(nn.Module):
         """
         points = pcd.coords
         colors = pcd.select_channels(['R', 'G', 'B']) / 255.
+        semantics = pcd.select_channels(['S'])
 
         fused_point_cloud = torch.tensor(np.asarray(points)).float().cuda()
         fused_color = RGB2SH(torch.tensor(np.asarray(colors)).float().cuda())
+        fused_semantics = torch.nn.functional.one_hot(torch.tensor(np.asarray(semantics[:,0])).to(torch.int64), 
+                                                      num_classes=self.num_classes).to(torch.float)
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
+        # Spherical harmonic features for each color
         features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
         features[:, :3, 0 ] = fused_color
         features[:, 3:, 1:] = 0.0
@@ -85,6 +91,7 @@ class GaussModel(nn.Module):
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        self._semantics = nn.Parameter(fused_semantics.requires_grad_(True))
         self.max_radii2D = torch.zeros((self._xyz.shape[0]), device="cuda")
         return self
 
@@ -100,6 +107,10 @@ class GaussModel(nn.Module):
     def get_xyz(self):
         return self._xyz
     
+    @property
+    def get_semantics(self):
+        return self._semantics
+
     @property
     def get_features(self):
         features_dc = self._features_dc
@@ -124,11 +135,12 @@ class GaussModel(nn.Module):
         opacities = self._opacity.detach().cpu().numpy()
         scale = self._scaling.detach().cpu().numpy()
         rotation = self._rotation.detach().cpu().numpy()
+        semantics = self._semantics.detach().cpu().numpy()
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
 
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation, semantics), axis=1)
         elements[:] = list(map(tuple, attributes))
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
@@ -145,4 +157,5 @@ class GaussModel(nn.Module):
             l.append('scale_{}'.format(i))
         for i in range(self._rotation.shape[1]):
             l.append('rot_{}'.format(i))
+        l.append('semantics')
         return l

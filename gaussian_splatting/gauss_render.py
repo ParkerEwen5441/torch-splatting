@@ -1,8 +1,12 @@
 import pdb
-import torch
-import torch.nn as nn
+import json
 import math
+import torch
+import numpy as np
+import torch.nn as nn
+
 from einops import reduce
+
 
 def inverse_sigmoid(x):
     return torch.log(x/(1-x))
@@ -39,7 +43,6 @@ def build_rotation(r):
     return R
 
 
-
 def build_scaling_rotation(s, r):
     L = torch.zeros((s.shape[0], 3, 3), dtype=torch.float, device="cuda")
     R = build_rotation(r)
@@ -67,7 +70,6 @@ def strip_symmetric(sym):
     return strip_lowerdiag(sym)
 
 
-
 def build_covariance_3d(s, r):
     L = build_scaling_rotation(s, r)
     actual_covariance = L @ L.transpose(1, 2)
@@ -76,10 +78,7 @@ def build_covariance_3d(s, r):
     # return symm
 
 
-
-def build_covariance_2d(
-    mean3d, cov3d, viewmatrix, fov_x, fov_y, focal_x, focal_y
-):
+def build_covariance_2d(mean3d, cov3d, viewmatrix, fov_x, fov_y, focal_x, focal_y):
     # The following models the steps outlined by equations 29
 	# and 31 in "EWA Splatting" (Zwicker et al., 2002). 
 	# Additionally considers aspect / scaling of viewport.
@@ -155,12 +154,14 @@ class GaussRenderer(nn.Module):
     >>> out = gaussRender(pc=gaussModel, camera=camera)
     """
 
-    def __init__(self, active_sh_degree=3, white_bkgd=True, **kwargs):
+    def __init__(self, active_sh_degree=3, white_bkgd=True, semantics=True, num_classes=2, **kwargs):
         super(GaussRenderer, self).__init__()
         self.active_sh_degree = active_sh_degree
         self.debug = False
         self.white_bkgd = white_bkgd
         self.pix_coord = torch.stack(torch.meshgrid(torch.arange(256), torch.arange(256), indexing='xy'), dim=-1).to('cuda')
+        self.render_semantic_color = semantics
+        self.num_classes = num_classes
         
     
     def build_color(self, means3D, shs, camera):
@@ -170,13 +171,14 @@ class GaussRenderer(nn.Module):
         color = (color + 0.5).clip(min=0.0)
         return color
     
-    def render(self, camera, means2D, cov2d, color, opacity, depths):
+    def render(self, camera, means2D, cov2d, color, opacity, depths, semantics):
         radii = get_radius(cov2d)
         rect = get_rect(means2D, radii, width=camera.image_width, height=camera.image_height)
         
         self.render_color = torch.ones(*self.pix_coord.shape[:2], 3).to('cuda')
         self.render_depth = torch.zeros(*self.pix_coord.shape[:2], 1).to('cuda')
         self.render_alpha = torch.zeros(*self.pix_coord.shape[:2], 1).to('cuda')
+        self.render_semantic = torch.zeros(*self.pix_coord.shape[:2], self.num_classes).to('cuda')
 
         TILE_SIZE = 64
         for h in range(0, camera.image_height, TILE_SIZE):
@@ -197,6 +199,7 @@ class GaussRenderer(nn.Module):
                 sorted_conic = sorted_cov2d.inverse() # inverse of variance
                 sorted_opacity = opacity[in_mask][index]
                 sorted_color = color[in_mask][index]
+                sorted_semantics = semantics[in_mask][index]
                 dx = (tile_coord[:,None,:] - sorted_means2D[None,:]) # B P 2
                 
                 gauss_weight = torch.exp(-0.5 * (
@@ -208,20 +211,49 @@ class GaussRenderer(nn.Module):
                 alpha = (gauss_weight[..., None] * sorted_opacity[None]).clip(max=0.99) # B P 1
                 T = torch.cat([torch.ones_like(alpha[:,:1]), 1-alpha[:,:-1]], dim=1).cumprod(dim=1)
                 acc_alpha = (alpha * T).sum(dim=1)
+
                 tile_color = (T * alpha * sorted_color[None]).sum(dim=1) + (1-acc_alpha) * (1 if self.white_bkgd else 0)
                 tile_depth = ((T * alpha) * sorted_depths[None,:,None]).sum(dim=1)
                 self.render_color[h:h+TILE_SIZE, w:w+TILE_SIZE] = tile_color.reshape(TILE_SIZE, TILE_SIZE, -1)
                 self.render_depth[h:h+TILE_SIZE, w:w+TILE_SIZE] = tile_depth.reshape(TILE_SIZE, TILE_SIZE, -1)
                 self.render_alpha[h:h+TILE_SIZE, w:w+TILE_SIZE] = acc_alpha.reshape(TILE_SIZE, TILE_SIZE, -1)
 
-        return {
-            "render": self.render_color,
-            "depth": self.render_depth,
-            "alpha": self.render_alpha,
-            "visiility_filter": radii > 0,
-            "radii": radii
-        }
+                # Decide if semantics are needed 
+                if self.render_semantic_color:
+                    eps = 1e-8
+                    tile_betas_vals = (T * alpha * sorted_semantics).sum(dim=1)
+                    mask = torch.sum(tile_betas_vals, dim=1) < eps
+                    tile_betas = torch.zeros_like(tile_betas_vals)
+                    tile_betas[:,0][mask] = 1
+                    tile_betas += tile_betas_vals
 
+                    tile_semantics = torch.div(tile_betas, torch.sum(tile_betas, dim=1)[:,None])
+
+                    if torch.any(torch.isnan(tile_semantics)):
+                        print(norm)
+                        print(tile_semantics)
+                        input("WAIT")
+
+                    self.render_semantic[h:h+TILE_SIZE, w:w+TILE_SIZE] = tile_semantics.reshape(TILE_SIZE, TILE_SIZE, -1)
+                    
+
+        if not self.render_semantic_color:
+            return {
+                "render": self.render_color,
+                "depth": self.render_depth,
+                "alpha": self.render_alpha,
+                "visiility_filter": radii > 0,
+                "radii": radii
+            }
+        else:
+            return {
+                "render": self.render_color,
+                "depth": self.render_depth,
+                "alpha": self.render_alpha,
+                "visiility_filter": radii > 0,
+                "radii": radii,
+                "semantic": self.render_semantic,
+            }
 
     def forward(self, camera, pc, **kwargs):
         means3D = pc.get_xyz
@@ -229,7 +261,8 @@ class GaussRenderer(nn.Module):
         scales = pc.get_scaling
         rotations = pc.get_rotation
         shs = pc.get_features
-        
+        semantics = pc.get_semantics
+
         if USE_PROFILE:
             prof = profiler.record_function
         else:
@@ -271,6 +304,7 @@ class GaussRenderer(nn.Module):
                 color=color,
                 opacity=opacity, 
                 depths=depths,
+                semantics=semantics,
             )
 
         return rets

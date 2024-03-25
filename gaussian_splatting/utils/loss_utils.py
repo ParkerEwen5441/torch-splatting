@@ -68,3 +68,7 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
         return ssim_map.mean()
     else:
         return ssim_map.mean(1).mean(1).mean(1)
+
+def sem_loss(prediction, gt, num_classes=2):
+    gt_one_hot = torch.nn.functional.one_hot(gt.to(torch.int64), num_classes=num_classes)
+    return torch.nn.functional.binary_cross_entropy(prediction, gt_one_hot.float())

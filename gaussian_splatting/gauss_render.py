@@ -220,20 +220,11 @@ class GaussRenderer(nn.Module):
 
                 # Decide if semantics are needed 
                 if self.render_semantic_color:
-                    eps = 1e-8
-                    tile_betas_vals = (T * alpha * sorted_semantics).sum(dim=1)
-                    mask = torch.sum(tile_betas_vals, dim=1) < eps
-                    tile_betas = torch.zeros_like(tile_betas_vals)
-                    tile_betas[:,0][mask] = 1
-                    tile_betas += tile_betas_vals
+                    tile_betas = (T * alpha * sorted_semantics).sum(dim=1)
+                    background_index = torch.zeros(tile_betas.shape[0]).to(torch.int64).to('cuda')
+                    background = (1-acc_alpha) * torch.nn.functional.one_hot(background_index, num_classes=self.num_classes)
 
-                    tile_semantics = torch.div(tile_betas, torch.sum(tile_betas, dim=1)[:,None])
-
-                    if torch.any(torch.isnan(tile_semantics)):
-                        print(norm)
-                        print(tile_semantics)
-                        input("WAIT")
-
+                    tile_semantics = torch.nn.functional.normalize(tile_betas + background, p=1)
                     self.render_semantic[h:h+TILE_SIZE, w:w+TILE_SIZE] = tile_semantics.reshape(TILE_SIZE, TILE_SIZE, -1)
                     
 

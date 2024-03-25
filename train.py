@@ -48,14 +48,6 @@ class GSSTrainer(Trainer):
         with prof:
             out = self.gaussRender(pc=self.model, camera=camera)
 
-        # import matplotlib.pyplot as plt
-        # semantic_image = colors[np.argmax(out['semantic'].detach().cpu().numpy(), axis=2)]
-        # image = mask.detach().cpu().numpy()
-        # f, ax = plt.subplots(2,1) 
-        # ax[0].imshow(image)
-        # ax[1].imshow(semantic_image)
-        # plt.show()
-
         if USE_PROFILE:
             print(prof.key_averages(group_by_stack_n=True).table(sort_by='self_cuda_time_total', row_limit=20))
 
@@ -68,10 +60,10 @@ class GSSTrainer(Trainer):
         sem_loss = loss_utils.sem_loss(out['semantic'], mask, num_classes=self.gaussRender.num_classes)
 
         # Total loss
-        total_loss = (1-self.lambda_dssim) * l1_loss + \
-                     self.lambda_dssim * ssim_loss + \
-                     depth_loss * self.lambda_depth + \
-                     sem_loss * self.lambda_semantic
+        total_loss = ((1-self.lambda_dssim) * l1_loss +
+                     self.lambda_dssim * ssim_loss +
+                     depth_loss * self.lambda_depth +
+                     sem_loss * self.lambda_semantic)
 
         psnr = utils.img2psnr(out['render'], rgb)
         log_dict = {'total': total_loss,'l1':l1_loss, 'ssim': ssim_loss, 'depth': depth_loss, 'psnr': psnr, 'semantic': sem_loss}

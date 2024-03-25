@@ -71,4 +71,4 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
 
 def sem_loss(prediction, gt, num_classes=2):
     gt_one_hot = torch.nn.functional.one_hot(gt.to(torch.int64), num_classes=num_classes)
-    return torch.nn.functional.binary_cross_entropy(prediction, gt_one_hot.float())
+    return torch.nn.functional.binary_cross_entropy(prediction.clamp(0, 1), gt_one_hot.float())

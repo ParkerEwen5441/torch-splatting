@@ -154,7 +154,7 @@ class GaussRenderer(nn.Module):
     >>> out = gaussRender(pc=gaussModel, camera=camera)
     """
 
-    def __init__(self, active_sh_degree=3, white_bkgd=True, semantics=True, num_classes=2, **kwargs):
+    def __init__(self, active_sh_degree=3, white_bkgd=True, semantics=True, num_classes=6, **kwargs):
         super(GaussRenderer, self).__init__()
         self.active_sh_degree = active_sh_degree
         self.debug = False

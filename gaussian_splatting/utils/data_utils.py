@@ -11,43 +11,46 @@ def read_camera(folder):
     """
     read camera from json file
     """
-    scene_info = json.load(open(os.path.join(folder, 'info.json')))
+    # scene_info = json.load(open(os.path.join(folder, 'info.json')))
+    scene_info = json.load(open(os.path.join(folder, 'test.json')))
     max_depth = 1
     try:
-        max_depth = scene_info['images'][0]['max_depth']
+        # max_depth = scene_info['images'][0]['max_depth']
+        intrinsics = scene_info['intrinsics']
     except:
         pass
 
     rgb_files = []
     poses = []
-    intrinsics = []
+    max_depths = []
     for item in scene_info['images']:
         rgb_files.append(os.path.join(folder, item['rgb']))
         c2w = item['pose']
-        w2c_blender = np.linalg.inv(c2w)
-        w2c_opencv = w2c_blender
-        w2c_opencv[1:3] *= -1
-        c2w_opencv = np.linalg.inv(w2c_opencv)
-        poses.append(np.array(c2w_opencv))
-        intrinsics.append(np.array(item['intrinsic']))
-    return rgb_files, poses, intrinsics, max_depth
+        poses.append(np.linalg.pinv(np.array(c2w)))
+        max_depths.append(np.array(item['max_depth']))
+    return rgb_files, poses, intrinsics, max_depths
 
 def read_all(folder, resize_factor=1.):
     """
     read source images from a folder
     """
-    # scene_src_dir = os.path.join(self.folder_path_src, scene_id)
-    src_rgb_files, src_poses, src_intrinsics, max_depth = read_camera(folder)
+    # src_rgb_files, src_poses, max_depth = read_camera(folder)
+    src_rgb_files, src_poses, intrinsics, max_depths = read_camera(folder)
 
     src_cameras = []
     src_rgbs = []
     src_alphas = []
     src_depths = []
     src_semantics = []
-    for src_rgb_file, src_pose, intrinsic in zip(src_rgb_files, src_poses, src_intrinsics):
+
+
+    for src_rgb_file, src_pose, max_depth in zip(src_rgb_files, src_poses, max_depths):
         src_rgb , src_depth, src_alpha, src_semantic, src_camera = \
-        read_image(src_rgb_file, src_pose, 
-            intrinsic, max_depth=max_depth, resize_factor=resize_factor)
+        read_image(src_rgb_file, 
+                   src_pose, 
+                   max_depth=max_depth,
+                   intrinsics=intrinsics,
+                   resize_factor=resize_factor)
 
         src_rgbs.append(src_rgb)
         src_depths.append(src_depth)
@@ -72,18 +75,21 @@ def read_all(folder, resize_factor=1.):
     }
 
 
-def read_image(rgb_file, pose, intrinsic_, max_depth, resize_factor=1., white_bkgd=True):
+def read_image(rgb_file, pose, max_depth, intrinsics, resize_factor=1., white_bkgd=True):
     rgb = torch.from_numpy(imageio.imread(rgb_file).astype(np.float32) / 255.0)
     depth = torch.from_numpy(imageio.imread(rgb_file[:-7]+'depth.png').astype(np.float32) / 255.0 * max_depth)
     alpha = torch.from_numpy(imageio.imread(rgb_file[:-7]+'alpha.png').astype(np.float32) / 255.0)
-
-    ################# TO DO: SWITCH TO SEMANTIC IMAGES LATER #################
+    # semantic = torch.from_numpy(imageio.imread(rgb_file[:-7]+'semantic.png').astype(np.float32) / 255.0)
     semantic = torch.from_numpy(imageio.imread(rgb_file[:-7]+'alpha.png').astype(np.float32) / 255.0)
-    ##########################################################################
-    
+
+    # import matplotlib.pyplot as plt
+    # plt.imshow(imageio.imread(rgb_file[:-7]+'depth.png').astype(np.float32) / 255.0 * max_depth)
+    # plt.show()
+
     image_size = rgb.shape[:2]
-    intrinsic = np.eye(4,4)
-    intrinsic[:3,:3] = intrinsic_
+    intrinsic = np.eye(4)
+    intrinsic[:3,:3] = np.array(intrinsics)
+    # intrinsic[:3,:3] = intrinsic_
 
     if resize_factor != 1:
         image_size = image_size[0] * resize_factor, image_size[1] * resize_factor 

@@ -40,7 +40,7 @@ class GaussModel(nn.Module):
 
         self.rotation_activation = torch.nn.functional.normalize
     
-    def __init__(self, sh_degree : int=3, debug=False):
+    def __init__(self, sh_degree : int=3, debug=False, num_classes : int=6):
         super(GaussModel, self).__init__()
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
@@ -52,7 +52,7 @@ class GaussModel(nn.Module):
         self._semantics = torch.empty(0)
         self.setup_functions()
         self.debug = debug
-        self.num_classes = 2
+        self.num_classes = num_classes
 
     def create_from_pcd(self, pcd:PointCloud):
         """

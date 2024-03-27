@@ -127,6 +127,16 @@ class PointCloud:
         indices = np.random.choice(len(self.coords), size=(num_points,), replace=False)
         return self.subsample(indices, **subsample_kwargs)
 
+    def rotate_points(self, R):
+        """
+        Rotates the point cloud given a rotation matrix.
+        
+        :param      R:    Rotation matrix
+        :type       R:    3x3 np.array
+        """
+        self.coords = np.transpose(R @ np.transpose(self.coords))
+        return
+
     @classmethod
     def load(cls, f: Union[str, BinaryIO]) -> "PointCloud":
         """

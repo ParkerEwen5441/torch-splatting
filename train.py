@@ -38,6 +38,7 @@ class GSSTrainer(Trainer):
         rgb = self.data['rgb'][ind]
         depth = self.data['depth'][ind]
         mask = (self.data['alpha'][ind] > 0.5)
+
         if USE_GPU_PYTORCH:
             camera = to_viewpoint_camera(camera)
 
@@ -105,30 +106,24 @@ class GSSTrainer(Trainer):
 
 if __name__ == "__main__":
     device = 'cuda'
-    folder = './B075X65R3X'
+    # folder = './B075X65R3X'
     folder = './Replica'
     data = read_all(folder, resize_factor=0.5)
     data = {k: v.to(device) for k, v in data.items()}
     data['depth_range'] = torch.Tensor([[1,3]]*len(data['rgb'])).to(device)
 
     points = get_point_clouds(data['camera'], data['depth'], data['alpha'], data['rgb'], data['semantic'])
-    raw_points = points.random_sample(2**14)
+    raw_points = points.random_sample(2**16)
 
-    np.save('full_pc_example.npy', points.coords)
+    # import quaternion
+    # import open3d as o3d
+    # mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+    #                                         size=1, origin=[0, 0, 0])
+    # pcd = o3d.geometry.PointCloud()
+    # pcd.points = o3d.utility.Vector3dVector(raw_points.coords)
+    # o3d.visualization.draw_geometries([pcd, mesh_frame])
 
-    import quaternion
-    import open3d as o3d
-    Rac = np.array([[1, 0, 0],
-                    [0, 0, 1],
-                    [0, -1, 0]])
-    pc = np.transpose(Rac @ np.transpose(points.coords))
-    mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-                                            size=1, origin=[0, 0, 0])
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(pc)
-    o3d.visualization.draw_geometries([pcd, mesh_frame])
-
-    raw_points.rotate_points(Rac)
+    # raw_points.rotate_points(Rac)
     gaussModel = GaussModel(sh_degree=4, debug=False)
     gaussModel.create_from_pcd(pcd=raw_points)
 

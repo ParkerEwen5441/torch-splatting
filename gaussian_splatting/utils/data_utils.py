@@ -11,11 +11,9 @@ def read_camera(folder):
     """
     read camera from json file
     """
-    # scene_info = json.load(open(os.path.join(folder, 'info.json')))
-    scene_info = json.load(open(os.path.join(folder, 'test.json')))
-    max_depth = 1
+    scene_info = json.load(open(os.path.join(folder, 'info.json')))
+    # scene_info = json.load(open(os.path.join(folder, 'test.json')))
     try:
-        # max_depth = scene_info['images'][0]['max_depth']
         intrinsics = scene_info['intrinsics']
     except:
         pass
@@ -25,8 +23,23 @@ def read_camera(folder):
     max_depths = []
     for item in scene_info['images']:
         rgb_files.append(os.path.join(folder, item['rgb']))
-        c2w = item['pose']
-        poses.append(np.linalg.pinv(np.array(c2w)))
+
+        # Habitat coords to camera coords
+        h2c = np.eye(4)
+        h2c[1,1] = -1
+        h2c[2,2] = -1 
+
+        # World to agent transform
+        w2a = np.array(item['pose'])
+
+        # Agent to world transform
+        a2c = np.eye(4)
+        a2c[:3, 3] = np.array([0, 1.5, 0])
+
+        # Camera to world
+        c2w = w2a @ a2c @ h2c
+
+        poses.append(c2w)
         max_depths.append(np.array(item['max_depth']))
     return rgb_files, poses, intrinsics, max_depths
 
@@ -34,7 +47,6 @@ def read_all(folder, resize_factor=1.):
     """
     read source images from a folder
     """
-    # src_rgb_files, src_poses, max_depth = read_camera(folder)
     src_rgb_files, src_poses, intrinsics, max_depths = read_camera(folder)
 
     src_cameras = []

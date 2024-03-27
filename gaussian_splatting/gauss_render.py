@@ -100,9 +100,7 @@ def build_covariance_2d(mean3d, cov3d, viewmatrix, fov_x, fov_y, focal_x, focal_
     J[..., 0, 2] = -tx / (tz * tz) * focal_x
     J[..., 1, 1] = 1 / tz * focal_y
     J[..., 1, 2] = -ty / (tz * tz) * focal_y
-    # J[..., 2, 0] = tx / t.norm(dim=-1) # discard
-    # J[..., 2, 1] = ty / t.norm(dim=-1) # discard
-    # J[..., 2, 2] = tz / t.norm(dim=-1) # discard
+
     W = viewmatrix[:3,:3].T # transpose to correct viewmatrix
     cov2d = J @ W @ cov3d @ W.T @ J.permute(0,2,1)
     
@@ -117,7 +115,10 @@ def projection_ndc(points, viewmatrix, projmatrix):
     p_w = 1.0 / (points_h[..., -1:] + 0.000001)
     p_proj = points_h * p_w
     p_view = points_o @ viewmatrix
-    in_mask = p_view[..., 2] >= 0.2
+
+    # Change mask to allow points behind image
+    # in_mask = p_view[..., 2] >= 0.01
+    in_mask = p_view[..., 2] >= -100
     return p_proj, p_view, in_mask
 
 
@@ -263,6 +264,7 @@ class GaussRenderer(nn.Module):
             mean_ndc, mean_view, in_mask = projection_ndc(means3D, 
                     viewmatrix=camera.world_view_transform, 
                     projmatrix=camera.projection_matrix)
+
             mean_ndc = mean_ndc[in_mask]
             mean_view = mean_view[in_mask]
             depths = mean_view[:,2]

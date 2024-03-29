@@ -29,7 +29,7 @@ class GSSTrainer(Trainer):
         self.data = kwargs.get('data')
         self.gaussRender = GaussRenderer(**kwargs.get('render_kwargs', {}))
         self.lambda_dssim = 0.2
-        self.lambda_depth = 0.0
+        self.lambda_depth = 0.2
         self.lambda_semantic = 0.01
     
     def on_train_step(self):
@@ -38,6 +38,7 @@ class GSSTrainer(Trainer):
         rgb = self.data['rgb'][ind]
         depth = self.data['depth'][ind]
         mask = (self.data['alpha'][ind] > 0.5)
+        semantic = 255 * self.data['semantic'][ind]
 
         if USE_GPU_PYTORCH:
             camera = to_viewpoint_camera(camera)
@@ -59,7 +60,7 @@ class GSSTrainer(Trainer):
         ssim_loss = 1.0-loss_utils.ssim(out['render'], rgb)
 
         # Semantic losses
-        sem_loss = loss_utils.sem_loss(out['semantic'], mask, num_classes=self.gaussRender.num_classes)
+        sem_loss = loss_utils.sem_loss(out['semantic'], semantic, num_classes=self.gaussRender.num_classes)
 
         # Total loss
         total_loss = ((1-self.lambda_dssim) * l1_loss +
@@ -93,13 +94,13 @@ class GSSTrainer(Trainer):
         depth = plt.get_cmap('jet')(depth)[..., :3]
 
         # Render semantic image
-        sem = (self.data['alpha'][ind] > 0.5).detach().cpu().numpy()
+        sem = 255 * self.data['semantic'][ind].detach().cpu().numpy()
         sem_pd = np.argmax(out['semantic'].detach().cpu().numpy(), axis=2)
-        sem = np.concatenate([sem.astype(int), sem_pd], axis=1)
-        sem = plt.get_cmap('viridis')(sem.astype(float))[..., :3]        
+        sem = np.concatenate([sem, sem_pd], axis=1)
+        sem = colors[sem,:]   
 
         # Concatenate outputs
-        image = np.concatenate([image, depth, sem], axis=0)
+        image = np.concatenate([image, depth, sem_color], axis=0)
 
         utils.imwrite(str(self.results_folder / f'image-{self.step}.png'), image)
 
@@ -114,16 +115,6 @@ if __name__ == "__main__":
 
     points = get_point_clouds(data['camera'], data['depth'], data['alpha'], data['rgb'], data['semantic'])
     raw_points = points.random_sample(2**16)
-
-    # import quaternion
-    # import open3d as o3d
-    # mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-    #                                         size=1, origin=[0, 0, 0])
-    # pcd = o3d.geometry.PointCloud()
-    # pcd.points = o3d.utility.Vector3dVector(raw_points.coords)
-    # o3d.visualization.draw_geometries([pcd, mesh_frame])
-
-    # raw_points.rotate_points(Rac)
     gaussModel = GaussModel(sh_degree=4, debug=False)
     gaussModel.create_from_pcd(pcd=raw_points)
 
@@ -145,3 +136,5 @@ if __name__ == "__main__":
 
     trainer.on_evaluate_step()
     trainer.train()
+
+    gaussModel.save_ply(path='/result/Replica/gs_model.ply')

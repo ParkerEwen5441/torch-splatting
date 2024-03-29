@@ -47,7 +47,7 @@ def get_point_clouds(cameras, depths, alphas, rgbs=None, semantics=None):
     rgbas = torch.cat([rgbs, alphas.unsqueeze(-1)], dim=-1)
     coords = pts[mask].cpu().numpy()
     rgbas = rgbas.flatten(1,-2)[mask].cpu().numpy()
-    semantics = semantics.flatten(1)[mask].squeeze().cpu().numpy()
+    semantics = 255 * semantics.flatten(1)[mask].squeeze().cpu().numpy()
 
     if rgbs is not None and semantics is None:
         channels = dict(
@@ -62,7 +62,7 @@ def get_point_clouds(cameras, depths, alphas, rgbs=None, semantics=None):
             G=rgbas[..., 1],
             B=rgbas[..., 2],
             A=rgbas[..., 3],
-            S=semantics[...],
+            S=semantics,
         )
     else:
         channels = {}

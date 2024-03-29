@@ -91,17 +91,12 @@ def read_image(rgb_file, pose, max_depth, intrinsics, resize_factor=1., white_bk
     rgb = torch.from_numpy(imageio.imread(rgb_file).astype(np.float32) / 255.0)
     depth = torch.from_numpy(imageio.imread(rgb_file[:-7]+'depth.png').astype(np.float32) / 255.0 * max_depth)
     alpha = torch.from_numpy(imageio.imread(rgb_file[:-7]+'alpha.png').astype(np.float32) / 255.0)
-    # semantic = torch.from_numpy(imageio.imread(rgb_file[:-7]+'semantic.png').astype(np.float32) / 255.0)
-    semantic = torch.from_numpy(imageio.imread(rgb_file[:-7]+'alpha.png').astype(np.float32) / 255.0)
-
-    # import matplotlib.pyplot as plt
-    # plt.imshow(imageio.imread(rgb_file[:-7]+'depth.png').astype(np.float32) / 255.0 * max_depth)
-    # plt.show()
+    semantic = torch.from_numpy(imageio.imread(rgb_file[:-7]+'semantic.png').astype(np.float32) / 255.0)
+    # semantic = torch.from_numpy(imageio.imread(rgb_file[:-7]+'alpha.png').astype(np.float32) / 255.0)
 
     image_size = rgb.shape[:2]
     intrinsic = np.eye(4)
     intrinsic[:3,:3] = np.array(intrinsics)
-    # intrinsic[:3,:3] = intrinsic_
 
     if resize_factor != 1:
         image_size = image_size[0] * resize_factor, image_size[1] * resize_factor 

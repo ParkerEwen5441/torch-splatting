@@ -97,7 +97,7 @@ class GSSTrainer(Trainer):
         sem = 255 * self.data['semantic'][ind].detach().cpu().numpy()
         sem_pd = np.argmax(out['semantic'].detach().cpu().numpy(), axis=2)
         sem = np.concatenate([sem, sem_pd], axis=1)
-        sem = colors[sem,:]   
+        sem = colors[sem.astype(int),:]   
 
         # Concatenate outputs
         image = np.concatenate([image, depth, sem_color], axis=0)

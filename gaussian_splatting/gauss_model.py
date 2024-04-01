@@ -155,5 +155,5 @@ class GaussModel(nn.Module):
             l.append('scale_{}'.format(i))
         for i in range(self._rotation.shape[1]):
             l.append('rot_{}'.format(i))
-        l.append('semantics')
+        # l.append('semantics')
         return l

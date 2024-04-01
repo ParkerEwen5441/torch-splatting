@@ -29,8 +29,9 @@ class GSSTrainer(Trainer):
         self.data = kwargs.get('data')
         self.gaussRender = GaussRenderer(**kwargs.get('render_kwargs', {}))
         self.lambda_dssim = 0.2
-        self.lambda_depth = 0.2
-        self.lambda_semantic = 0.01
+        self.lambda_depth = 0.75
+        self.lambda_semantic = 1.0
+        self.model = kwargs.get('model')
     
     def on_train_step(self):
         ind = np.random.choice(len(self.data['camera']))
@@ -100,9 +101,11 @@ class GSSTrainer(Trainer):
         sem = colors[sem.astype(int),:]   
 
         # Concatenate outputs
-        image = np.concatenate([image, depth, sem_color], axis=0)
+        image = np.concatenate([image, depth, sem], axis=0)
 
         utils.imwrite(str(self.results_folder / f'image-{self.step}.png'), image)
+
+        self.model.save_ply(path='/result/Replica/gs_model.ply')
 
 
 if __name__ == "__main__":
